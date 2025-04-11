@@ -1,107 +1,101 @@
-# Prognosis - The Perfect Predictive Model of Everything
+# Prognosis
 
-Prognosis is an advanced, self-evolving multimodal predictive system that combines state-of-the-art machine learning and deep learning techniques to provide unparalleled perception and reasoning capabilities. Designed as a highly modular and scalable system, Prognosis integrates vision, audio, and textual data to create a unified predictive model capable of analyzing and forecasting complex real-world scenarios.
+Prognosis is an advanced AI-based vision system designed to perform real-time object detection, tracking, and contextual analysis. It combines cutting-edge technologies such as hyperdimensional computing, evolutionary algorithms, and emotional valence mapping to create a highly intelligent and adaptive system. Prognosis features a unique approach to perception and decision-making, inspired by theories of consciousness, neuroscience, and machine learning.
 
-## **How Prognosis Works**
+## How Prognosis Works
 
-Prognosis leverages cutting-edge AI and computational techniques to process multimodal data streams in real time. Here's a breakdown of how it operates:
+Prognosis integrates multiple AI components to create a sophisticated vision and decision-making system:
 
-### **1. Data Perception**
-- **Vision Processing**: Powered by YOLO for object detection, SAM for segmentation, and optical flow for motion tracking. It can also estimate 3D human poses using Facebook's PyTorch3D SMPL-X model.
-- **Audio Analysis**: Equipped with Whisper ASR for speech recognition and wav2vec2 for audio embedding, Prognosis processes audio signals for enhanced speech and sound recognition.
-- **Text Understanding**: Uses Mistral's large language model (LLM) for text comprehension and reasoning.
+1. **Object Detection**:  
+   Prognosis uses the YOLOv8x model for real-time object detection. It identifies various objects in the video stream, such as people, vehicles, and more, and assigns them meaningful labels.
 
-### **2. Predictive Modeling**
-- **Multimodal Integration**: Combines vision, audio, and text inputs using cross-modal attention mechanisms to create a unified representation of the environment.
-- **Sequence Forecasting**: Employs a transformer-based sequence predictor to forecast future events based on observed patterns.
-- **Causal Reasoning**: Utilizes graph neural networks (GNNs) to analyze causal relationships and predict outcomes with improved interpretability.
+2. **Object Tracking**:  
+   The system leverages the DeepSort tracker to maintain consistent tracking of objects over time, even in a dynamic scene. It calculates the movement, speed, and direction of objects.
 
-### **3. Memory Systems**
-- **Hierarchical Memory**: Maintains both short-term and long-term memory using HNSW (Hierarchical Navigable Small World) indexing for efficient information retrieval.
-- **Episodic Memory**: Stores event-based information to improve the system's ability to generalize across similar scenarios.
+3. **Emotional Valence Mapping**:  
+   Inspired by Damasio's emotional valence theory, Prognosis assigns emotional weights to objects based on proximity, movement, and speed. This allows it to prioritize objects that may require attention, such as fast-moving cars or nearby pedestrians.
 
-### **4. Real-Time Processing**
-- **Asynchronous Data Streams**: Processes video, audio, and text data in parallel using thread pools and queues for low-latency predictions.
-- **Resource Monitoring**: Monitors GPU, CPU, and RAM usage to ensure smooth operation and dynamically manages memory to prevent system overloads.
+4. **Hyperdimensional Computing**:  
+   Prognosis encodes object states and tracks into high-dimensional vectors, simulating a holographic memory. These vectors enable the system to recall past states and detect patterns in complex contexts.
 
-### **5. Visualization**
-- Prognosis provides enhanced visual feedback, including object detection overlays, motion tracking, and textual predictions, rendered in real time.
+5. **Evolutionary Adaptation**:  
+   Using Darwinian principles, Prognosis evaluates and evolves its internal parameters over time to improve its predictive capabilities. It continuously tests different configurations, retaining the most effective ones.
 
----
+6. **Quantum Prediction**:  
+   The system predicts future object states using probabilistic scenarios, enabling it to forecast potential collisions, overlaps, or significant events.
 
-## **Example Outputs**
+7. **Text-to-Speech (TTS)**:  
+   Prognosis provides real-time audio feedback using a text-to-speech engine. It generates alerts and summaries of the scene, making it highly interactive and user-friendly.
 
-Here are a few examples of Prognosis in action:
+8. **Hyperdimensional Consciousness Field**:  
+   Prognosis simulates a "consciousness field" by maintaining a multi-dimensional grid of dynamic values. This field helps it identify hotspots of activity, convergence points, and emergent patterns in the environment.
 
-### **Example 1: Real-Time Object Detection and Prediction**
-- Input: Live video feed of a busy street.
-- Output:
-  - Detected objects: "Person, Car, Bicycle."
-  - Predicted actions: "Crossing street, Vehicle accelerating, Person stopping."
-  - Visual overlay: Bounding boxes around objects with predicted actions displayed.
+## Example Outputs of Prognosis in Action
 
-### **Example 2: Audio-Visual Multimodal Analysis**
-- Input: Video feed of a meeting with audio.
-- Output:
-  - Detected speech text: "Let's discuss the quarterly budget report."
-  - Predicted sentiment: "Neutral."
-  - Predicted next action: "Open presentation slides."
+Here are some examples of what Prognosis might output during operation:
 
-### **Example 3: Causal Reasoning**
-- Input: Graph data representing connections between variables.
-- Output:
-  - Predicted causal relationships: "Variable A influences Variable B with 85% confidence."
-  - Future state prediction: "Variable B will increase by 10% in the next 5 steps."
+### Real-Time Alerts:
+- **Scenario 1 (Fast Movement)**:  
+   "Alert: Fast-moving car driving on the left."
+- **Scenario 2 (Collision Prediction)**:  
+   "Predicted convergence between a person and a bicycle with 85% probability in 1 second."
+- **Scenario 3 (Consciousness Hotspot)**:  
+   "Hyperdimensional consciousness hotspot detected at coordinates (120, 240)."
 
----
+### Scene Summaries:
+- After 150 frames, the system provides a summary of the scene:  
+   "Scene summary: 3 people, 2 cars, 1 bicycle."
 
-## **How to Use Prognosis**
+### Object Localization:
+- "A person has appeared on the center. A car is parked on the right."
 
-### **1. Installation**
-To use Prognosis, ensure you have the necessary dependencies installed. The system relies on various Python libraries, CUDA for GPU acceleration, and deep learning frameworks like PyTorch and TensorFlow.
+## How to Use Prognosis
 
-#### **Step 1: Clone the Repository**
-```bash
-git clone https://github.com/CalebMathias/Prognosis-.git
-cd Prognosis-
-```
+### Requirements
+To use Prognosis, ensure you have the following installed:
+- Python 3.8 or higher
+- Libraries: OpenCV, PyTorch, NumPy, SciPy, pyttsx3, and ultralytics (YOLO)
+- A webcam or video input device
 
-#### **Step 2: Install Dependencies**
-Install the required libraries using `pip`:
-```bash
-pip install -r requirements.txt
-```
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/CalebMathias/Prognosis-.git
+   cd Prognosis-
+   ```
 
-#### **Step 3: Prepare Models**
-Ensure that all required models (e.g., YOLO, Mistral LLM, wav2vec, etc.) are downloaded and accessible. The code will automatically download pretrained models on first run.
+2. Install the required Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### **2. Running Prognosis**
-Run the system by executing the main script:
-```bash
-python Prognosis
-```
+3. Ensure that the YOLOv8x model (`yolov8x.pt`) is available in the working directory.
 
-### **3. Configuration**
-You can configure the input source (e.g., webcam, video file) and other parameters by modifying the `Prognosis` class initialization:
-```python
-Prognosis(video_source=0).run()
-```
-- `video_source=0`: Default webcam.
-- Replace `0` with a file path to process a video file.
+### Running Prognosis
+1. Launch Prognosis:
+   ```bash
+   python Prognosis
+   ```
 
-### **4. Output**
-- Predictions are logged to `prognosis_v4.log`.
-- Visual outputs are saved as a video file (`prognosis_v4.avi`).
-- Real-time visualizations appear in the video window if running interactively.
+2. The system will activate the webcam and start detecting and tracking objects in real time. A window will display the video feed with bounding boxes, labels, and actions.
 
----
+3. Use the following key to control the system:
+   - Press `q` to quit the application.
 
-## **Features**
-- **Multimodal Data Processing**: Combines vision, audio, and text data for holistic analysis.
-- **Real-Time Predictions**: Low-latency processing for dynamic environments.
-- **Causal Reasoning**: Understands and predicts relationships between variables.
-- **Memory Integration**: Short-term and long-term memory systems for enhanced generalization.
+### Customization
+- **Class Labels**:  
+   Modify the `self.class_labels` dictionary in the `Prognosis` class to add or change object labels.
+- **Action Mapping**:  
+   Adjust the `self.action_map` dictionary to define new actions for detected objects.
+- **Evolutionary Parameters**:  
+   Change the `self.population` list to experiment with different noise multiplier values.
+
+## Future Enhancements
+Prognosis is designed to be extensible. Future updates may include:
+- Integration with external APIs for advanced analytics
+- Support for additional object detection models
+- Enhanced visualization tools for the hyperdimensional consciousness field
 
 ---
 
-Prognosis is designed for researchers, developers, and enthusiasts who are looking to explore advanced AI capabilities in predictive modeling and real-time analysis. Contributions and feedback are welcome!
+Prognosis combines the latest advancements in AI, neuroscience, and robotics to create an intelligent system capable of understanding its environment in real time. Whether used for surveillance, autonomous systems, or educational purposes, Prognosis offers a glimpse into the future of machine intelligence.
