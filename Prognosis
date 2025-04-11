@@ -1,403 +1,447 @@
-#!/usr/bin/env python3
-"""
-Prognosis - The Perfect Predictive Model of Everything
-Version: 4.0
-Advanced self-evolving multimodal predictive system with enhanced perception and reasoning
-"""
-
-import torch
-import torch.nn as nn
-import numpy as np
 import cv2
-import os
+import torch
+import numpy as np
+import pyttsx3
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
-from collections import deque, Counter
 import threading
 import queue
-import time
-import json
+from collections import Counter
+from scipy.fft import fft, ifft
+import random
 import logging
-import psutil
-import pygame
-import tempfile
-from elevenlabs import ElevenLabs, VoiceSettings
-import mediapipe as mp
-import tensorflow as tf
-import tensorflow_hub as hub
-from sentence_transformers import SentenceTransformer
-import faiss
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-import requests
-from torch.distributions import Categorical
-import sounddevice as sd
-import torchvision.transforms as T
-from torch.cuda.amp import autocast, GradScaler
-from torch.nn.parallel import DistributedDataParallel as DDP
-import hnswlib
-import warnings
-from typing import Optional, Tuple
 
-# Suppress unnecessary warnings
-warnings.filterwarnings("ignore", category=UserWarning)
+# Setup logging for debugging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Configure advanced logging
-logger = logging.getLogger('prognosis')
-logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler("prognosis_v4.log", encoding="utf-8")
-handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
-logger.addHandler(handler)
-
-# Enhanced Multimodal Predictor with Cross-modal Attention
-class MultimodalPredictor(nn.Module):
-    def __init__(self, vision_dim=1024, audio_dim=768, text_dim=4096, hidden_dim=2048, num_outputs=50):
-        super().__init__()
-        self.vision_encoder = nn.Sequential(
-            nn.Linear(vision_dim, hidden_dim),
-            nn.GELU(),
-            nn.LayerNorm(hidden_dim)
-        )
-        self.audio_encoder = nn.Sequential(
-            nn.Linear(audio_dim, hidden_dim),
-            nn.GELU(),
-            nn.LayerNorm(hidden_dim)
-        )
-        self.text_encoder = nn.Sequential(
-            nn.Linear(text_dim, hidden_dim),
-            nn.GELU(),
-            nn.LayerNorm(hidden_dim)
-        )
-        
-        self.cross_attn = nn.MultiheadAttention(hidden_dim, 16, batch_first=True)
-        self.temporal_conv = nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, padding=1)
-        
-        self.fusion = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=hidden_dim,
-                nhead=16,
-                dim_feedforward=hidden_dim*4,
-                batch_first=True
-            ), 
-            num_layers=6
-        )
-        
-        self.classifier = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim//2),
-            nn.SiLU(),
-            nn.Linear(hidden_dim//2, num_outputs)
-        )
-        
-        self.dropout = nn.Dropout(0.2)
-        self.scaler = GradScaler()
-
-    def forward(self, vision, audio, text):
-        with autocast():
-            v = self.vision_encoder(vision)
-            a = self.audio_encoder(audio)
-            t = self.text_encoder(text)
-            
-            # Cross-modal attention
-            attn_out, _ = self.cross_attn(
-                query=v.unsqueeze(1),
-                key=torch.cat([a.unsqueeze(1), t.unsqueeze(1)], dim=1),
-                value=torch.cat([a.unsqueeze(1), t.unsqueeze(1)], dim=1)
-            )
-            
-            # Temporal convolution
-            conv_out = self.temporal_conv(attn_out.squeeze(1).transpose(1,2)).transpose(1,2)
-            
-            # Final fusion
-            fused = self.fusion(conv_out.unsqueeze(1)).squeeze(1)
-            return self.classifier(self.dropout(fused))
-
-# Enhanced Sequence Predictor with Transformer
-class SequencePredictor(nn.Module):
-    def __init__(self, hidden_dim=2048, num_layers=4, nhead=16):
-        super().__init__()
-        self.pos_encoder = PositionalEncoding(hidden_dim)
-        self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=hidden_dim,
-                nhead=nhead,
-                dim_feedforward=hidden_dim*4,
-                batch_first=True
-            ),
-            num_layers=num_layers
-        )
-        self.pred_head = nn.Linear(hidden_dim, hidden_dim)
-        
-    def forward(self, x):
-        x = self.pos_encoder(x)
-        x = self.transformer(x)
-        return self.pred_head(x[:, -1])
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_len: int = 5000):
-        super().__init__()
-        position = torch.arange(max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-np.log(10000.0) / d_model)
-        pe = torch.zeros(1, max_len, d_model)
-        pe[0, :, 0::2] = torch.sin(position * div_term)
-        pe[0, :, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x + self.pe[:, :x.size(1)]
-
-# Enhanced Causal Predictor with Graph Networks
-class CausalPredictor(nn.Module):
-    def __init__(self, input_dim=3072, hidden_dim=2048, num_relations=10):
-        super().__init__()
-        self.gcn_layers = nn.ModuleList([
-            GraphConvLayer(input_dim if i == 0 else hidden_dim, hidden_dim)
-            for i in range(3)
-        ])
-        self.relation_classifier = nn.Linear(hidden_dim, num_relations)
-        
-    def forward(self, graph_data):
-        x, edge_index = graph_data
-        for layer in self.gcn_layers:
-            x = layer(x, edge_index)
-        return torch.sigmoid(self.relation_classifier(x))
-
-class GraphConvLayer(nn.Module):
-    def __init__(self, in_dim, out_dim):
-        super().__init__()
-        self.linear = nn.Linear(in_dim, out_dim)
-        self.attn = nn.MultiheadAttention(out_dim, 8)
-        
-    def forward(self, x, edge_index):
-        x = self.linear(x)
-        x, _ = self.attn(x, x, x)
-        return torch.relu(x)
-
-# Main Enhanced Prognosis Class
 class Prognosis:
-    def __init__(self, video_source=0):
-        self.device = self._configure_device()
-        self._init_perception_models()
-        self._init_predictive_models()
-        self._init_memory_systems()
-        self._init_real_time_systems(video_source)
-        self._start_service_monitor()
+    def __init__(self):
+        # Core AI Vision Components
+        self.model = YOLO("yolov8x.pt")
+        self.tracker = DeepSort(max_age=30)
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            raise Exception("Failed to initialize webcam")
 
-    def _configure_device(self):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        torch.backends.cudnn.benchmark = True
-        torch.set_float32_matmul_precision('high')
-        return device
+        # Text-to-Speech Setup
+        self.speech_queue = queue.Queue()
+        self.tts = pyttsx3.init()
+        self.tts.setProperty("rate", 150)
+        self.speech_thread = threading.Thread(target=self._speech_loop, daemon=True)
+        self.speech_thread.start()
 
-    def _init_perception_models(self):
-        # Enhanced vision models
-        self.yolo = YOLO("yolov9c.pt").to(self.device)
-        self.sam = torch.hub.load('facebookresearch/segment-anything', 'sam_vit_h').to(self.device)
-        self.optical_flow = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_ULTRAFAST)
-        
-        # Enhanced audio processing
-        self.audio_model = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-large-v3",
-            device=0 if torch.cuda.is_available() else -1
-        )
-        self.wav2vec = torch.hub.load('pytorch/fairseq', 'wav2vec2_large').to(self.device)
-        
-        # Enhanced text processing
-        self.llm = AutoModelForCausalLM.from_pretrained(
-            "mistralai/Mistral-7B-Instruct-v0.2",
-            torch_dtype=torch.bfloat16,
-            device_map="auto"
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2")
-        
-        # 3D human pose estimation
-        self.pose_3d = torch.hub.load('facebookresearch/pytorch3d', 'smplx').to(self.device)
+        # Class Labels and Actions
+        self.class_labels = {0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 56: "chair", 58: "bench"}
+        self.action_map = {
+            "person": {"moving": "walking", "stationary": "standing"},
+            "car": {"moving": "driving", "stationary": "parked"},
+            "bicycle": {"moving": "riding", "stationary": "stopped"},
+            "motorcycle": {"moving": "riding", "stationary": "stopped"}
+        }
 
-    def _init_predictive_models(self):
-        # Initialize with mixed precision
-        with torch.cuda.amp.autocast():
-            self.predictor = MultimodalPredictor().to(self.device)
-            self.sequence_predictor = SequencePredictor().to(self.device)
-            self.causal_predictor = CausalPredictor().to(self.device)
-            
-        # Optimizers with weight decay
-        self.optimizer = torch.optim.AdamW(
-            list(self.predictor.parameters()) +
-            list(self.sequence_predictor.parameters()) +
-            list(self.causal_predictor.parameters()),
-            lr=0.0001,
-            weight_decay=0.01
-        )
-        self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            self.optimizer,
-            max_lr=0.001,
-            steps_per_epoch=100,
-            epochs=10
-        )
+        # Emotional Valence Mapping (Damasio's Theory)
+        self.emotion_weights = {
+            "person": {"close": 0.8, "medium": 0.4, "far": 0.1, "fast": 1.0},
+            "car": {"close": 0.9, "medium": 0.5, "far": 0.2, "fast": 1.2},
+            "bicycle": {"close": 0.6, "medium": 0.3, "far": 0.1, "fast": 0.8}
+        }
 
-    def _init_memory_systems(self):
-        # Hierarchical memory with HNSW
-        self.short_term_memory = hnswlib.Index(space='l2', dim=4096)
-        self.short_term_memory.init_index(max_elements=10000, ef_construction=200, M=16)
-        self.long_term_memory = hnswlib.Index(space='cosine', dim=4096)
-        self.long_term_memory.init_index(max_elements=100000, ef_construction=200, M=32)
-        
-        # Memory queues
-        self.event_buffer = deque(maxlen=1000)
-        self.episodic_memory = deque(maxlen=10000)
+        # Holographic Memory (Holonomic Brain Theory, Hyperdimensional Extension)
+        self.holo_memory = []
+        self.max_memory = 100
+        self.hyper_dims = 5  # Number of hyperdimensions
+        self.hyper_vector_size = 32  # Size of each hyperdimensional vector
 
-    def _init_real_time_systems(self, video_source):
-        # Video processing
-        self.cap = cv2.VideoCapture(video_source)
-        self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.out = cv2.VideoWriter('prognosis_v4.avi', 
-                                 cv2.VideoWriter_fourcc(*'AV01'), 
-                                 30, 
-                                 (self.frame_width, self.frame_height))
-        
-        # Audio processing
-        self.audio_stream = sd.InputStream(
-            callback=self._audio_callback,
-            samplerate=16000,
-            channels=1,
-            dtype='float32'
-        )
-        self.audio_stream.start()
-        
-        # Thread pools
-        self.vision_queue = queue.Queue(maxsize=10)
-        self.audio_queue = queue.Queue(maxsize=10)
-        self.text_queue = queue.Queue(maxsize=10)
-        
-        # Start workers
-        self._start_vision_worker()
-        self._start_audio_worker()
-        self._start_text_worker()
+        # PNN-Inspired Components
+        self.pnn_stability = {}
+        self.pnn_plasticity = 0.5
+        self.pnn_protection = {}
 
-    def _start_service_monitor(self):
-        self.monitor = threading.Thread(target=self._resource_monitor)
-        self.monitor.daemon = True
-        self.monitor.start()
+        # Hyperdimensional Consciousness Field (Pravica's Theory)
+        self.field_scale = 4
+        self.hyper_field = None
+        self.hyper_decay = 0.9
+        self.hyper_amplitude = 1.0
 
-    def _resource_monitor(self):
+        # Tracking and State
+        self.frame_counter = 0
+        self.previous_track_ids = set()
+        self.last_spoken = {}
+        self.previous_overlaps = set()
+
+        # Evolutionary Mechanism (Darwin's Theory)
+        self.population = [
+            {'noise_multiplier': 1.0},
+            {'noise_multiplier': 0.8},
+            {'noise_multiplier': 1.2},
+        ]
+        self.current_parameter_set = self.population[0]
+        self.errors = {i: [] for i in range(len(self.population))}
+        self.track_histories = {}
+        self.evolution_interval = 300
+
+    def _speech_loop(self):
         while True:
-            gpu_mem = torch.cuda.memory_allocated() / 1e9 if torch.cuda.is_available() else 0
-            usage = {
-                'cpu': psutil.cpu_percent(),
-                'ram': psutil.virtual_memory().percent,
-                'gpu': gpu_mem
-            }
-            if usage['ram'] > 90:
-                self._free_memory()
-            time.sleep(5)
+            message = self.speech_queue.get()
+            if message is None:
+                break
+            self.tts.say(message)
+            self.tts.runAndWait()
+            self.speech_queue.task_done()
 
-    def _free_memory(self):
-        torch.cuda.empty_cache()
-        self.short_term_memory = hnswlib.Index(space='l2', dim=4096)
-        self.short_term_memory.init_index(max_elements=10000, ef_construction=200, M=16)
+    def speak(self, message, priority=1.0):
+        if priority is None or priority <= 0:
+            priority = 1.0
+        if message not in self.last_spoken or self.last_spoken[message] > 30 * (1 / priority):
+            self.speech_queue.put(message)
+            self.last_spoken[message] = 0
+        for key in list(self.last_spoken.keys()):
+            self.last_spoken[key] += 1
+            if self.last_spoken[key] > 60:
+                del self.last_spoken[key]
 
-    def _audio_callback(self, indata, frames, time_info, status):
-        self.audio_queue.put(indata.copy())
+    def get_location(self, box, frame_width):
+        x_center = (box[0] + box[2]) / 2
+        if x_center < frame_width / 3:
+            return "left"
+        elif x_center < 2 * frame_width / 3:
+            return "center"
+        else:
+            return "right"
 
-    def _start_vision_worker(self):
-        def worker():
-            prev_gray = None
-            while True:
-                frame = self.vision_queue.get()
-                if frame is None:
-                    break
-                
-                # Optical flow calculation
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if prev_gray is not None:
-                    flow = self.optical_flow.calc(prev_gray, gray, None)
-                    flow_mag = np.sqrt(flow[...,0]**2 + flow[...,1]**2)
-                else:
-                    flow_mag = np.zeros_like(gray)
-                prev_gray = gray
-                
-                # Enhanced detection with SAM
-                results = self.yolo(frame)
-                detections = []
-                for result in results:
-                    boxes = result.boxes.xyxy.cpu().numpy()
-                    for box in boxes:
-                        mask = self.sam.predict(box, frame)
-                        detections.append({
-                            'box': box,
-                            'mask': mask,
-                            'flow': flow_mag[int(box[1]):int(box[3]), int(box[0]):int(box[2])]
-                        })
-                
-                # 3D pose estimation
-                pose_results = self.pose_3d.predict(frame)
-                
-                self.vision_queue.task_done()
+    def get_distance(self, box, frame_height):
+        height = box[3] - box[1]
+        if height > 0.5 * frame_height:
+            return "close"
+        elif height > 0.2 * frame_height:
+            return "medium"
+        else:
+            return "far"
 
-        self.vision_worker = threading.Thread(target=worker)
-        self.vision_worker.start()
+    def get_movement(self, track, fps):
+        state = track.mean if hasattr(track, 'mean') else [0, 0, 0, 0, 0, 0, 0]
+        vx, vy = state[4], state[5]
+        speed = (vx**2 + vy**2)**0.5 * fps
+        if speed < 10:
+            return "stationary", speed
+        direction = "right" if vx > 0 else "left"
+        speed_label = "fast" if speed > 200 else "slow"
+        return f"{speed_label} {direction}", speed
 
-    def run(self):
-        try:
-            while self.cap.isOpened():
-                ret, frame = self.cap.read()
-                if not ret:
-                    break
-                
-                # Asynchronous processing
-                self.vision_queue.put(frame)
-                
-                # Process audio in parallel
-                if not self.audio_queue.empty():
-                    audio_data = self.audio_queue.get()
-                    self._process_audio(audio_data)
-                
-                # Process text in parallel
-                if not self.text_queue.empty():
-                    text_data = self.text_queue.get()
-                    self._process_text(text_data)
-                
-                # Generate predictions
-                self._generate_predictions()
-                
-                # Visualize results
-                self._visualize(frame)
-                
-                # Memory management
-                if self.frame_counter % 100 == 0:
-                    self._consolidate_memory()
+    def get_action(self, obj_type, movement):
+        state = "moving" if movement != "stationary" else "stationary"
+        return self.action_map.get(obj_type, {}).get(state, "")
 
-        finally:
-            self._cleanup()
+    def hyperdimensional_encode(self, track):
+        state = track.mean[:6]
+        np.random.seed(int(track.track_id))
+        projection_matrix = np.random.normal(0, 1, (6, self.hyper_vector_size))
+        hyper_vector = np.tanh(np.dot(state, projection_matrix))
+        norm = np.linalg.norm(hyper_vector)
+        hyper_vector = hyper_vector / (norm if norm > 0 else 1.0)
+        if len(self.holo_memory) >= self.max_memory:
+            self.holo_memory.pop(0)
+        self.holo_memory.append(hyper_vector)
+        return hyper_vector
 
-    def _generate_predictions(self):
-        # Multi-horizon forecasting
-        with torch.inference_mode():
-            current_state = self._get_current_state()
-            predictions = []
-            for _ in range(5):  # Predict 5 steps ahead
-                pred = self.sequence_predictor(current_state)
-                predictions.append(pred)
-                current_state = torch.cat([current_state[:,1:], pred.unsqueeze(1)], dim=1)
-            
-            # Causal analysis
-            causal_graph = self._build_causal_graph(predictions)
-            self.causal_predictor(causal_graph)
+    def hyperdimensional_recall(self, current_vector, track_id):
+        if not self.holo_memory:
+            return np.zeros(self.hyper_vector_size)
+        similarities = [np.dot(current_vector, mem) / (np.linalg.norm(current_vector) * np.linalg.norm(mem) + 1e-10)
+                        for mem in self.holo_memory]
+        best_match_idx = np.argmax(similarities)
+        stability_boost = self.pnn_stability.get(int(track_id), 0.5)
+        return self.holo_memory[best_match_idx] if similarities[best_match_idx] > (0.5 * stability_boost) else np.zeros(self.hyper_vector_size)
 
-    def _visualize(self, frame):
-        # Enhanced visualization with OpenGL
-        overlay = np.zeros_like(frame)
-        cv2.putText(overlay, f"Prediction: {current_action}", 
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-        cv2.addWeighted(frame, 0.7, overlay, 0.3, 0, frame)
-        self.out.write(frame)
+    def update_pnn_properties(self, track, confidence):
+        track_id = int(track.track_id)
+        confidence = float(confidence) if confidence is not None else 0.5
+        self.pnn_stability[track_id] = self.pnn_stability.get(track_id, 0) + (confidence * 0.1)
+        self.pnn_stability[track_id] = min(self.pnn_stability[track_id], 1.0)
+        self.pnn_protection[track_id] = self.pnn_stability[track_id] * 0.8
 
-    def _cleanup(self):
+    def modulate_plasticity(self, context_complexity):
+        self.pnn_plasticity = max(0.1, 1.0 - (context_complexity / 100))
+
+    def quantum_predict(self, track, t, num_scenarios=3):
+        state = track.mean[:7]
+        scenarios = []
+        stability = self.pnn_stability.get(int(track.track_id), 0.5)
+        noise_scale = 5 * (1 - stability) * self.pnn_plasticity * self.current_parameter_set['noise_multiplier']
+        track_id = int(track.track_id)
+        for _ in range(num_scenarios):
+            hyper_noise = np.random.normal(0, noise_scale / np.sqrt(self.hyper_dims), 7)
+            u, v, s, r, u_dot, v_dot, s_dot = state + hyper_noise
+            u_future = u + t * u_dot
+            v_future = v + t * v_dot
+            s_future = max(s + t * s_dot, 1)
+            w_future = np.sqrt(s_future * r) if r > 0 else 1
+            h_future = s_future / w_future if w_future > 0 else 1
+            box_future = [u_future - w_future / 2, v_future - h_future / 2,
+                          u_future + w_future / 2, v_future + h_future / 2]
+            field_u = int(u_future // self.field_scale)
+            field_v = int(v_future // self.field_scale)
+            hyper_coord = np.array([field_u / self.hyper_field.shape[2],
+                                   field_v / self.hyper_field.shape[1],
+                                   (track_id % 10) / 10.0,
+                                   (self.frame_counter % 100) / 100.0])
+            hyper_indices = [int(c * self.hyper_field.shape[i]) for i, c in enumerate(hyper_coord)]
+            hyper_indices = [max(0, min(idx, self.hyper_field.shape[i] - 1)) for i, idx in enumerate(hyper_indices)]
+            consciousness_value = self.hyper_field[tuple(hyper_indices)]
+            original_prob = random.uniform(0.5, 1.0 - (1 - stability))
+            adjusted_prob = original_prob * (1 + consciousness_value)
+            scenarios.append((box_future, (u_future, v_future), adjusted_prob))
+        return sorted(scenarios, key=lambda x: x[2], reverse=True)
+
+    def compute_prediction_with_state(self, state, t, param_set):
+        scenarios = []
+        noise_scale = 5 * (1 - 0.5) * self.pnn_plasticity * param_set['noise_multiplier']
+        for _ in range(3):
+            hyper_noise = np.random.normal(0, noise_scale / np.sqrt(self.hyper_dims), 7)
+            u, v, s, r, u_dot, v_dot, s_dot = state + hyper_noise
+            u_future = u + t * u_dot
+            v_future = v + t * v_dot
+            s_future = max(s + t * s_dot, 1)
+            w_future = np.sqrt(s_future * r) if r > 0 else 1
+            h_future = s_future / w_future if w_future > 0 else 1
+            box_future = [u_future - w_future / 2, v_future - h_future / 2,
+                          u_future + w_future / 2, v_future + h_future / 2]
+            scenarios.append((box_future, (u_future, v_future), 1.0))
+        return sorted(scenarios, key=lambda x: x[2], reverse=True)[0]
+
+    def boxes_overlap(self, box1, box2):
+        x1a, y1a, x2a, y2a = box1
+        x1b, y1b, x2b, y2b = box2
+        return x1a < x2b and x2a > x1b and y1a < y2b and y2a > y1b
+
+    def object_detector(self):
+        print("🚀 Prognosis AI Vision with Hyperdimensional Consciousness Field and Evolutionary Adaptation Activated...")
+        fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
+        future_t = 30
+
+        while self.cap.isOpened():
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Failed to capture frame.")
+                break
+
+            frame_height, frame_width = frame.shape[:2]
+            field_height = frame_height // self.field_scale
+            field_width = frame_width // self.field_scale
+            hyper_size = 10
+
+            if self.hyper_field is None or self.hyper_field.shape[:2] != (field_height, field_width):
+                self.hyper_field = np.zeros((field_height, field_width, hyper_size, hyper_size))
+            else:
+                self.hyper_field *= self.hyper_decay
+
+            results = self.model(frame, conf=0.4)
+            detections = []
+            for result in results:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    confidence = box.conf[0].item()
+                    try:
+                        class_id = int(box.cls[0].item())
+                    except (TypeError, ValueError):
+                        logging.warning(f"Invalid class_id for box: {box.cls[0].item()}")
+                        class_id = -1
+                    obj_type = self.class_labels.get(class_id, "unknown")
+                    detections.append([[x1, y1, x2, y2], confidence, obj_type])
+
+            tracks = self.tracker.update_tracks(detections, frame=frame)
+            current_track_ids = set()
+            track_data = []
+
+            for track in tracks:
+                if not track.is_confirmed():
+                    continue
+                box = track.to_tlbr()
+                try:
+                    track_id = int(track.track_id)
+                except (TypeError, ValueError) as e:
+                    logging.error(f"Invalid track_id {track.track_id}: {e}")
+                    continue
+                obj_type = str(getattr(track, 'det_class', "unknown"))
+                if obj_type not in self.class_labels.values():
+                    logging.warning(f"Invalid obj_type detected: {obj_type}, setting to 'unknown'")
+                    obj_type = "unknown"
+                confidence = getattr(track, 'det_conf', 0.5) if getattr(track, 'det_conf', None) is not None else 0.5
+                current_track_ids.add(track_id)
+                location = self.get_location(box, frame_width)
+                distance = self.get_distance(box, frame_height)
+                movement, speed = self.get_movement(track, fps)
+                action = self.get_action(obj_type, movement)
+
+                self.update_pnn_properties(track, confidence)
+
+                emo_weight = self.emotion_weights.get(obj_type, {}).get(distance, 0.5)
+                if emo_weight is None:
+                    logging.warning(f"emo_weight is None for obj_type={obj_type}, distance={distance}. Setting to 0.5.")
+                    emo_weight = 0.5
+                if "fast" in movement:
+                    fast_weight = self.emotion_weights.get(obj_type, {}).get("fast", 0.0)
+                    if fast_weight is None:
+                        logging.warning(f"fast_weight is None for obj_type={obj_type}. Setting to 0.0.")
+                        fast_weight = 0.0
+                    emo_weight += fast_weight
+                emo_weight *= self.pnn_stability.get(track_id, 0.5)
+
+                hyper_pattern = self.hyperdimensional_encode(track)
+                hyper_refinement = self.hyperdimensional_recall(hyper_pattern, track_id)
+
+                x_center = (box[0] + box[2]) / 2
+                y_center = (box[1] + box[3]) / 2
+                field_x = int(x_center // self.field_scale)
+                field_y = int(y_center // self.field_scale)
+                if obj_type == "person":
+                    try:
+                        hyper_x = (track_id % 10) % hyper_size
+                        hyper_y = (self.frame_counter % 100) % hyper_size
+                        for dy in range(-1, 2):
+                            for dx in range(-1, 2):
+                                fy = field_y + dy
+                                fx = field_x + dx
+                                if 0 <= fy < field_height and 0 <= fx < field_width:
+                                    self.hyper_field[fy, fx, hyper_x, hyper_y] += self.hyper_amplitude
+                    except TypeError as e:
+                        logging.error(f"TypeError in hyperdimensional indexing for track {track_id}: {e}")
+                        continue
+
+                consciousness_value = 0.0
+                if 0 <= field_y < field_height and 0 <= field_x < field_width:
+                    consciousness_value = np.mean(self.hyper_field[field_y, field_x])
+
+                track_info = {
+                    "track_id": track_id,
+                    "type": obj_type,
+                    "location": location,
+                    "distance": distance,
+                    "movement": movement,
+                    "speed": speed,
+                    "action": action,
+                    "emo_weight": emo_weight,
+                    "pnn_stability": self.pnn_stability.get(track_id, 0.5),
+                    "consciousness_value": consciousness_value
+                }
+                track_data.append(track_info)
+
+                x1, y1, x2, y2 = map(int, box)
+                label = f"ID: {track_id} - {obj_type} ({action}) S:{track_info['pnn_stability']:.2f} C:{consciousness_value:.2f}"
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                if speed > 200:
+                    priority = emo_weight * (1 + consciousness_value)
+                    self.speak(f"Alert: Fast-moving {obj_type} {movement} on the {location}.", priority)
+
+            # Evolutionary Evaluation
+            if self.frame_counter % 30 == 0:
+                for track in tracks:
+                    if not track.is_confirmed():
+                        continue
+                    track_id = track.track_id
+                    current_state = track.mean[:7]
+                    if track_id in self.track_histories:
+                        frame_30_ago, state_30_ago = self.track_histories[track_id]
+                        if self.frame_counter - frame_30_ago == 30:
+                            actual_position = [(current_state[0] + current_state[2])/2, (current_state[1] + current_state[3])/2]
+                            for i, param_set in enumerate(self.population):
+                                top_box, _, _ = self.compute_prediction_with_state(state_30_ago, 30, param_set)
+                                predicted_position = [(top_box[0] + top_box[2])/2, (top_box[1] + top_box[3])/2]
+                                error = np.linalg.norm(np.array(predicted_position) - np.array(actual_position))
+                                self.errors[i].append(error)
+                    self.track_histories[track_id] = (self.frame_counter, current_state)
+
+            # Evolutionary Update
+            if self.frame_counter % self.evolution_interval == 0 and self.frame_counter > 0:
+                avg_errors = [np.mean(self.errors[i]) if self.errors[i] else float('inf') for i in range(len(self.population))]
+                best_idx = np.argmin(avg_errors)
+                best_param_set = self.population[best_idx]
+                self.current_parameter_set = best_param_set
+                new_population = [best_param_set]
+                for _ in range(len(self.population) - 1):
+                    new_noise_multiplier = best_param_set['noise_multiplier'] + np.random.normal(0, 0.1)
+                    new_noise_multiplier = max(0.1, new_noise_multiplier)
+                    new_population.append({'noise_multiplier': new_noise_multiplier})
+                self.population = new_population
+                self.errors = {i: [] for i in range(len(self.population))}
+                logging.info(f"Evolved population: {[p['noise_multiplier'] for p in self.population]}, Best: {best_param_set['noise_multiplier']}")
+
+            self.track_histories = {k: v for k, v in self.track_histories.items() if k in current_track_ids}
+
+            new_ids = current_track_ids - self.previous_track_ids
+            for track_id in new_ids:
+                track = next(t for t in track_data if t["track_id"] == track_id)
+                priority = track["emo_weight"] * (1 + track["consciousness_value"])
+                self.speak(f"A {track['type']} has appeared on the {track['location']}.", priority)
+
+            context_complexity = len(tracks) * 10
+            self.modulate_plasticity(context_complexity)
+
+            future_scenarios = {}
+            for track in tracks:
+                if not track.is_confirmed():
+                    continue
+                scenarios = self.quantum_predict(track, future_t)
+                future_scenarios[track.track_id] = scenarios
+                top_box, _, _ = scenarios[0]
+                x1, y1, x2, y2 = map(int, top_box)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+
+            current_overlaps = set()
+            track_ids = list(future_scenarios.keys())
+            for i in range(len(track_ids)):
+                for j in range(i + 1, len(track_ids)):
+                    id1, id2 = track_ids[i], track_ids[j]
+                    box1, center1, prob1 = future_scenarios[id1][0]
+                    box2, center2, prob2 = future_scenarios[id2][0]
+                    if self.boxes_overlap(box1, box2):
+                        current_overlaps.add(tuple(sorted([id1, id2])))
+                        joint_prob = prob1 * prob2
+                        track1 = next(t for t in track_data if t["track_id"] == id1)
+                        track2 = next(t for t in track_data if t["track_id"] == id2)
+                        field_u1 = int(center1[0] // self.field_scale)
+                        field_v1 = int(center1[1] // self.field_scale)
+                        field_u2 = int(center2[0] // self.field_scale)
+                        field_v2 = int(center2[1] // self.field_scale)
+                        consciousness_value1 = consciousness_value2 = 0.0
+                        if 0 <= field_v1 < field_height and 0 <= field_u1 < field_width:
+                            consciousness_value1 = np.mean(self.hyper_field[field_v1, field_u1])
+                        if 0 <= field_v2 < field_height and 0 <= field_u2 < field_width:
+                            consciousness_value2 = np.mean(self.hyper_field[field_v2, field_u2])
+                        emo_priority = max(track1["emo_weight"], track2["emo_weight"]) * (1 + max(consciousness_value1, consciousness_value2))
+                        self.speak(f"Predicted convergence between {track1['type']} and {track2['type']} "
+                                   f"with {int(joint_prob * 100)}% probability in 1 second.", emo_priority)
+
+            hyper_sum = np.sum(self.hyper_field, axis=(2, 3))
+            if np.any(hyper_sum > 10):
+                max_y, max_x = np.unravel_index(np.argmax(hyper_sum), hyper_sum.shape)
+                self.speak(f"Hyperdimensional consciousness hotspot detected at coordinates ({max_x * self.field_scale}, {max_y * self.field_scale}).", 2.0)
+
+            self.previous_overlaps = current_overlaps
+            self.previous_track_ids = current_track_ids
+
+            self.frame_counter += 1
+            if self.frame_counter >= 150:
+                type_counts = Counter([t['type'] for t in track_data])
+                summary = "Scene summary: " + ", ".join(f"{count} {t}{'s' if count > 1 else ''}"
+                                                       for t, count in type_counts.items())
+                self.speak(summary, 0.5)
+                self.frame_counter = 0
+
+            cv2.imshow("Prognosis AI Vision with Hyperdimensional Consciousness", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
         self.cap.release()
-        self.out.release()
-        self.audio_stream.stop()
-        self.vision_queue.put(None)
-        self.vision_worker.join()
+        cv2.destroyAllWindows()
+        self.speech_queue.put(None)
+        self.speech_thread.join()
+        print("Prognosis with Hyperdimensional Consciousness and Evolutionary Adaptation terminated.")
 
 if __name__ == "__main__":
-    Prognosis(video_source=0).run()
+    try:
+        prognosis = Prognosis()
+        prognosis.object_detector()
+    except Exception as e:
+        print(f"Error: {e}")
