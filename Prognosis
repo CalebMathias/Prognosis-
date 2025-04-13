@@ -31,37 +31,37 @@ class Prognosis:
         self.speech_thread.start()
 
         # Class Labels and Actions
-        self.class_labels = {0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 56: "chair", 58: "bench"}
+        self.class_labels = {0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 56: "chair", 58: "bench", -1: "unknown"}
         self.action_map = {
             "person": {"moving": "walking", "stationary": "standing"},
             "car": {"moving": "driving", "stationary": "parked"},
             "bicycle": {"moving": "riding", "stationary": "stopped"},
-            "motorcycle": {"moving": "riding", "stationary": "stopped"}
+            "motorcycle": {"moving": "riding", "stationary": "stopped"},
+            "unknown": {"moving": "moving", "stationary": "stationary"}
         }
-
-        # Emotional Valence Mapping (Damasio's Theory)
         self.emotion_weights = {
             "person": {"close": 0.8, "medium": 0.4, "far": 0.1, "fast": 1.0},
             "car": {"close": 0.9, "medium": 0.5, "far": 0.2, "fast": 1.2},
-            "bicycle": {"close": 0.6, "medium": 0.3, "far": 0.1, "fast": 0.8}
+            "bicycle": {"close": 0.6, "medium": 0.3, "far": 0.1, "fast": 0.8},
+            "unknown": {"close": 0.5, "medium": 0.3, "far": 0.1, "fast": 0.5}
         }
 
-        # Holographic Memory (Holonomic Brain Theory, Hyperdimensional Extension)
+        # Holographic Memory (Holonomic Brain Theory)
         self.holo_memory = []
         self.max_memory = 100
-        self.hyper_dims = 5  # Number of hyperdimensions
-        self.hyper_vector_size = 32  # Size of each hyperdimensional vector
+        self.hyper_dims = 5
+        self.hyper_vector_size = 32
+        self.previous_scene_vector = None
 
         # PNN-Inspired Components
         self.pnn_stability = {}
         self.pnn_plasticity = 0.5
         self.pnn_protection = {}
 
-        # Hyperdimensional Consciousness Field (Pravica's Theory)
+        # Hyperdimensional Consciousness Field (Pravicia's Theory)
         self.field_scale = 4
         self.hyper_field = None
-        self.hyper_decay = 0.9
-        self.hyper_amplitude = 1.0
+        self.hyper_field_avg = None  # For anomaly detection
 
         # Tracking and State
         self.frame_counter = 0
@@ -71,14 +71,17 @@ class Prognosis:
 
         # Evolutionary Mechanism (Darwin's Theory)
         self.population = [
-            {'noise_multiplier': 1.0},
-            {'noise_multiplier': 0.8},
-            {'noise_multiplier': 1.2},
+            {'noise_multiplier': 0.8, 'hyper_decay': 0.85, 'hyper_amplitude': 0.8},
+            {'noise_multiplier': 1.0, 'hyper_decay': 0.9, 'hyper_amplitude': 1.0},
+            {'noise_multiplier': 1.2, 'hyper_decay': 0.95, 'hyper_amplitude': 1.2},
+            {'noise_multiplier': 0.9, 'hyper_decay': 0.87, 'hyper_amplitude': 0.9},
+            {'noise_multiplier': 1.1, 'hyper_decay': 0.93, 'hyper_amplitude': 1.1},
         ]
         self.current_parameter_set = self.population[0]
-        self.errors = {i: [] for i in range(len(self.population))}
+        self.errors = {i: {'prediction': [], 'field_variance': []} for i in range(len(self.population))}
         self.track_histories = {}
         self.evolution_interval = 300
+        self.field_variance_history = []
 
     def _speech_loop(self):
         while True:
@@ -195,7 +198,7 @@ class Prognosis:
 
     def compute_prediction_with_state(self, state, t, param_set):
         scenarios = []
-        noise_scale = 5 * (1 - 0.5) * self.pnn_plasticity * param_set['noise_multiplier']
+        noise_scale = 5 * (1 - 0.5) * self.pnn_plasticity * param_set['noise_multiplie']
         for _ in range(3):
             hyper_noise = np.random.normal(0, noise_scale / np.sqrt(self.hyper_dims), 7)
             u, v, s, r, u_dot, v_dot, s_dot = state + hyper_noise
@@ -214,8 +217,48 @@ class Prognosis:
         x1b, y1b, x2b, y2b = box2
         return x1a < x2b and x2a > x1b and y1a < y2b and y2a > y1b
 
+    def calculate_ttc(self, track1, track2):
+        """Calculate time-to-collision between two tracks."""
+        state1 = track1.mean[:7]
+        state2 = track2.mean[:7]
+        pos1 = np.array([state1[0], state1[1]])  # u, v (center coordinates)
+        pos2 = np.array([state2[0], state2[1]])
+        vel1 = np.array([state1[4], state1[5]])  # u_dot, v_dot (velocities)
+        vel2 = np.array([state2[4], state2[5]])
+        V_rel = vel1 - vel2
+        P_rel = pos1 - pos2
+        if np.all(V_rel == 0):
+            return None  # No relative motion
+        dot_product = np.dot(P_rel, V_rel)
+        if dot_product >= 0:
+            return None  # Moving apart or parallel
+        V_rel_mag2 = np.dot(V_rel, V_rel)
+        if V_rel_mag2 < 1e-6:
+            return None  # Relative velocity too small
+        ttc = -dot_product / V_rel_mag2
+        if ttc < 0:
+            return None  # Collision in the past
+        # Calculate future positions
+        future_pos1 = pos1 + ttc * vel1
+        future_pos2 = pos2 + ttc * vel2
+        distance = np.linalg.norm(future_pos1 - future_pos2)
+        # Calculate radii based on box dimensions
+        s1, r1 = state1[2], state1[3]  # s: area, r: aspect ratio
+        w1 = np.sqrt(s1 * r1) if s1 > 0 and r1 > 0 else 0
+        h1 = s1 / w1 if w1 > 0 else 0
+        diag1 = np.sqrt(w1**2 + h1**2)
+        radius1 = diag1 / 2
+        s2, r2 = state2[2], state2[3]
+        w2 = np.sqrt(s2 * r2) if s2 > 0 and r2 > 0 else 0
+        h2 = s2 / w2 if w2 > 0 else 0
+        diag2 = np.sqrt(w2**2 + h2**2)
+        radius2 = diag2 / 2
+        if distance < (radius1 + radius2):
+            return ttc  # TTC in frames
+        return None
+
     def object_detector(self):
-        print("🚀 Prognosis AI Vision with Hyperdimensional Consciousness Field and Evolutionary Adaptation Activated...")
+        print("🚀 Prognosis AI Vision with Hyperdimensional Consciousness Field and Multi-Parameter Evolutionary Adaptation Activated...")
         fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
         future_t = 30
 
@@ -230,17 +273,19 @@ class Prognosis:
             field_width = frame_width // self.field_scale
             hyper_size = 10
 
+            # Initialize or resize hyperdimensional fields
             if self.hyper_field is None or self.hyper_field.shape[:2] != (field_height, field_width):
                 self.hyper_field = np.zeros((field_height, field_width, hyper_size, hyper_size))
+                self.hyper_field_avg = np.zeros_like(self.hyper_field)
             else:
-                self.hyper_field *= self.hyper_decay
+                self.hyper_field *= self.current_parameter_set['hyper_decay']
 
             results = self.model(frame, conf=0.4)
             detections = []
             for result in results:
                 for box in result.boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    confidence = box.conf[0].item()
+                    confidence = box.conf[0]
                     try:
                         class_id = int(box.cls[0].item())
                     except (TypeError, ValueError):
@@ -252,6 +297,7 @@ class Prognosis:
             tracks = self.tracker.update_tracks(detections, frame=frame)
             current_track_ids = set()
             track_data = []
+            scene_vector = np.zeros(self.hyper_vector_size)
 
             for track in tracks:
                 if not track.is_confirmed():
@@ -264,8 +310,14 @@ class Prognosis:
                     continue
                 obj_type = str(getattr(track, 'det_class', "unknown"))
                 if obj_type not in self.class_labels.values():
-                    logging.warning(f"Invalid obj_type detected: {obj_type}, setting to 'unknown'")
-                    obj_type = "unknown"
+                    for det in detections:
+                        det_box = det[0]
+                        if abs(det_box[0] - box[0]) < 5 and abs(det_box[1] - box[1]) < 5:
+                            obj_type = det[2]
+                            break
+                    else:
+                        logging.warning(f"Invalid obj_type for track {track_id}: {obj_type}, class_id: {getattr(track, 'det_class', 'N/A')}, confidence: {getattr(track, 'det_conf', 'N/A')}. Setting to 'unknown'")
+                        obj_type = "unknown"
                 confidence = getattr(track, 'det_conf', 0.5) if getattr(track, 'det_conf', None) is not None else 0.5
                 current_track_ids.add(track_id)
                 location = self.get_location(box, frame_width)
@@ -288,6 +340,7 @@ class Prognosis:
                 emo_weight *= self.pnn_stability.get(track_id, 0.5)
 
                 hyper_pattern = self.hyperdimensional_encode(track)
+                scene_vector += hyper_pattern * emo_weight
                 hyper_refinement = self.hyperdimensional_recall(hyper_pattern, track_id)
 
                 x_center = (box[0] + box[2]) / 2
@@ -295,6 +348,7 @@ class Prognosis:
                 field_x = int(x_center // self.field_scale)
                 field_y = int(y_center // self.field_scale)
                 if obj_type == "person":
+                    increment = self.current_parameter_set['hyper_amplitude'] * (1 + speed / 100)
                     try:
                         hyper_x = (track_id % 10) % hyper_size
                         hyper_y = (self.frame_counter % 100) % hyper_size
@@ -303,7 +357,7 @@ class Prognosis:
                                 fy = field_y + dy
                                 fx = field_x + dx
                                 if 0 <= fy < field_height and 0 <= fx < field_width:
-                                    self.hyper_field[fy, fx, hyper_x, hyper_y] += self.hyper_amplitude
+                                    self.hyper_field[fy, fx, hyper_x, hyper_y] += increment
                     except TypeError as e:
                         logging.error(f"TypeError in hyperdimensional indexing for track {track_id}: {e}")
                         continue
@@ -322,7 +376,8 @@ class Prognosis:
                     "action": action,
                     "emo_weight": emo_weight,
                     "pnn_stability": self.pnn_stability.get(track_id, 0.5),
-                    "consciousness_value": consciousness_value
+                    "consciousness_value": consciousness_value,
+                    "box": box
                 }
                 track_data.append(track_info)
 
@@ -334,6 +389,34 @@ class Prognosis:
                     priority = emo_weight * (1 + consciousness_value)
                     self.speak(f"Alert: Fast-moving {obj_type} {movement} on the {location}.", priority)
 
+            # Scene Vector Processing
+            if np.linalg.norm(scene_vector) > 0:
+                scene_vector /= np.linalg.norm(scene_vector)
+                if self.previous_scene_vector is not None:
+                    similarity = np.dot(scene_vector, self.previous_scene_vector)
+                    if similarity < 0.8:
+                        self.speak("Significant scene change detected.", priority=1.5)
+                        logging.info(f"Low scene similarity: {similarity}")
+                self.previous_scene_vector = scene_vector.copy()
+
+            # Emotional Weight Adjustment for Overlaps
+            overlapping_tracks = set()
+            for i in range(len(track_data)):
+                for j in range(i + 1, len(track_data)):
+                    if self.boxes_overlap(track_data[i]['box'], track_data[j]['box']):
+                        overlapping_tracks.add(track_data[i]['track_id'])
+                        overlapping_tracks.add(track_data[j]['track_id'])
+            for track in track_data:
+                if track['track_id'] in overlapping_tracks:
+                    track['emo_weight'] += 0.2
+                    track['emo_weight'] = min(track['emo_weight'], 1.5)
+
+            # Field Variance for Evolution
+            field_variance = np.var(self.hyper_field) if self.hyper_field.size > 0 else 0.0
+            self.field_variance_history.append(field_variance)
+            if len(self.field_variance_history) > 30:
+                self.field_variance_history.pop(0)
+
             # Evolutionary Evaluation
             if self.frame_counter % 30 == 0:
                 for track in tracks:
@@ -344,28 +427,48 @@ class Prognosis:
                     if track_id in self.track_histories:
                         frame_30_ago, state_30_ago = self.track_histories[track_id]
                         if self.frame_counter - frame_30_ago == 30:
-                            actual_position = [(current_state[0] + current_state[2])/2, (current_state[1] + current_state[3])/2]
+                            actual_position = [current_state[0], current_state[1]]  # u, v (center coordinates)
                             for i, param_set in enumerate(self.population):
                                 top_box, _, _ = self.compute_prediction_with_state(state_30_ago, 30, param_set)
                                 predicted_position = [(top_box[0] + top_box[2])/2, (top_box[1] + top_box[3])/2]
                                 error = np.linalg.norm(np.array(predicted_position) - np.array(actual_position))
-                                self.errors[i].append(error)
+                                # Weight error by consciousness value
+                                field_u = int(actual_position[0] // self.field_scale)
+                                field_v = int(actual_position[1] // self.field_scale)
+                                if 0 <= field_v < field_height and 0 <= field_u < field_width:
+                                    consciousness_value = np.mean(self.hyper_field[field_v, field_u])
+                                else:
+                                    consciousness_value = 0.0
+                                weighted_error = error * (1 + consciousness_value)
+                                self.errors[i]['prediction'].append(weighted_error)
+                                avg_variance = np.mean(self.field_variance_history) if self.field_variance_history else 0.0
+                                self.errors[i]['field_variance'].append(avg_variance)
                     self.track_histories[track_id] = (self.frame_counter, current_state)
 
             # Evolutionary Update
             if self.frame_counter % self.evolution_interval == 0 and self.frame_counter > 0:
-                avg_errors = [np.mean(self.errors[i]) if self.errors[i] else float('inf') for i in range(len(self.population))]
-                best_idx = np.argmin(avg_errors)
+                fitness_scores = []
+                for i in range(len(self.population)):
+                    avg_pred_error = np.mean(self.errors[i]['prediction']) if self.errors[i]['prediction'] else float('inf')
+                    avg_field_var = np.mean(self.errors[i]['field_variance']) if self.errors[i]['field_variance'] else 0.0
+                    norm_pred_error = avg_pred_error / 1000.0 if avg_pred_error != float('inf') else 1.0
+                    norm_field_var = abs(avg_field_var - 5.0) / 5.0 if avg_field_var > 0 else 0.0
+                    fitness = 0.7 * norm_pred_error + 0.3 * norm_field_var
+                    fitness_scores.append(fitness)
+                best_idx = np.argmin(fitness_scores)
                 best_param_set = self.population[best_idx]
                 self.current_parameter_set = best_param_set
                 new_population = [best_param_set]
                 for _ in range(len(self.population) - 1):
-                    new_noise_multiplier = best_param_set['noise_multiplier'] + np.random.normal(0, 0.1)
-                    new_noise_multiplier = max(0.1, new_noise_multiplier)
-                    new_population.append({'noise_multiplier': new_noise_multiplier})
+                    new_params = {
+                        'noise_multiplier': max(0.1, min(2.0, best_param_set['noise_multiplier'] + np.random.normal(0, 0.05))),
+                        'hyper_decay': max(0.5, min(0.99, best_param_set['hyper_decay'] + np.random.normal(0, 0.02))),
+                        'hyper_amplitude': max(0.1, min(2.0, best_param_set['hyper_amplitude'] + np.random.normal(0, 0.05)))
+                    }
+                    new_population.append(new_params)
                 self.population = new_population
-                self.errors = {i: [] for i in range(len(self.population))}
-                logging.info(f"Evolved population: {[p['noise_multiplier'] for p in self.population]}, Best: {best_param_set['noise_multiplier']}")
+                self.errors = {i: {'prediction': [], 'field_variance': []} for i in range(len(self.population))}
+                logging.info(f"Evolved population: {[p for p in self.population]}, Best: {best_param_set}")
 
             self.track_histories = {k: v for k, v in self.track_histories.items() if k in current_track_ids}
 
@@ -388,6 +491,32 @@ class Prognosis:
                 x1, y1, x2, y2 = map(int, top_box)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
+            # Check for Potential Collisions
+            for i in range(len(tracks)):
+                for j in range(i + 1, len(tracks)):
+                    track1 = tracks[i]
+                    track2 = tracks[j]
+                    if not track1.is_confirmed() or not track2.is_confirmed():
+                        continue
+                    ttc = self.calculate_ttc(track1, track2)
+                    if ttc is not None and ttc < 2.0 * fps:  # Within 2 seconds
+                        track1_info = next(t for t in track_data if t["track_id"] == track1.track_id)
+                        track2_info = next(t for t in track_data if t["track_id"] == track2.track_id)
+                        priority = max(track1_info["emo_weight"], track2_info["emo_weight"]) * 1.5
+                        ttc_seconds = ttc / fps
+                        self.speak(f"Potential collision between {track1_info['type']} and {track2_info['type']} in {ttc_seconds:.1f} seconds.", priority)
+
+            # Update Hyperdimensional Field Average and Detect Anomalies
+            alpha = 0.01
+            self.hyper_field_avg = alpha * self.hyper_field + (1 - alpha) * self.hyper_field_avg
+            diff = np.abs(self.hyper_field - self.hyper_field_avg)
+            diff_sum = np.sum(diff, axis=(2, 3))
+            anomaly_threshold = 5.0
+            if np.max(diff_sum) > anomaly_threshold:
+                anomaly_y, anomaly_x = np.unravel_index(np.argmax(diff_sum), diff_sum.shape)
+                self.speak(f"Anomaly detected in hyperdimensional field at ({anomaly_x * self.field_scale}, {anomaly_y * self.field_scale}).", 2.0)
+
+            # Future Scenario Overlaps
             current_overlaps = set()
             track_ids = list(future_scenarios.keys())
             for i in range(len(track_ids)):
@@ -437,7 +566,7 @@ class Prognosis:
         cv2.destroyAllWindows()
         self.speech_queue.put(None)
         self.speech_thread.join()
-        print("Prognosis with Hyperdimensional Consciousness and Evolutionary Adaptation terminated.")
+        print("Prognosis with Hyperdimensional Consciousness and Multi-Parameter Evolutionary Adaptation terminated.")
 
 if __name__ == "__main__":
     try:
