@@ -1,101 +1,152 @@
 # Prognosis
 
-Prognosis is an advanced AI-based vision system designed to perform real-time object detection, tracking, and contextual analysis. It combines cutting-edge technologies such as hyperdimensional computing, evolutionary algorithms, and emotional valence mapping to create a highly intelligent and adaptive system. Prognosis features a unique approach to perception and decision-making, inspired by theories of consciousness, neuroscience, and machine learning.
+Prognosis is an advanced AI-powered vision system that integrates cutting-edge technologies for real-time object detection, tracking, and analysis. It incorporates a range of features inspired by fields such as hyperdimensional computing, evolutionary algorithms, and consciousness field theories to provide a robust, adaptive, and intelligent vision framework.
+
+---
+
+## Features
+
+- **Object Detection:** Uses the YOLOv8x model for high-accuracy object detection.
+- **Object Tracking:** Integrates DeepSort for real-time tracking of multiple objects.
+- **Text-to-Speech (TTS):** Converts insights into audible messages using `pyttsx3` for interactive feedback.
+- **Hyperdimensional Memory:** Incorporates holographic memory for storing and recalling object states for contextual awareness.
+- **Evolutionary Adaptation:** Dynamically adjusts parameters using evolutionary algorithms to optimize performance in real-time.
+- **Anomaly Detection:** Identifies unusual patterns in the scene using a hyperdimensional consciousness field.
+- **Collision Prediction:** Predicts potential collisions between objects with quantum-inspired noise modeling.
+
+---
 
 ## How Prognosis Works
 
-Prognosis integrates multiple AI components to create a sophisticated vision and decision-making system:
+Prognosis operates as a real-time vision system that processes video input from a webcam or other video sources. It combines object detection, tracking, and state management to generate insights about the environment. Here's a breakdown of its functionality:
 
-1. **Object Detection**:  
-   Prognosis uses the YOLOv8x model for real-time object detection. It identifies various objects in the video stream, such as people, vehicles, and more, and assigns them meaningful labels.
+1. **Initialization**:  
+   - Loads the YOLOv8x model for object detection.
+   - Initializes the DeepSort tracker for object tracking.
+   - Sets up a text-to-speech engine for auditory feedback.
 
-2. **Object Tracking**:  
-   The system leverages the DeepSort tracker to maintain consistent tracking of objects over time, even in a dynamic scene. It calculates the movement, speed, and direction of objects.
+2. **Object Detection**:  
+   - Captures frames from a live video feed.
+   - Detects objects in each frame using YOLO and classifies them into predefined categories (e.g., person, car, bicycle).
 
-3. **Emotional Valence Mapping**:  
-   Inspired by Damasio's emotional valence theory, Prognosis assigns emotional weights to objects based on proximity, movement, and speed. This allows it to prioritize objects that may require attention, such as fast-moving cars or nearby pedestrians.
+3. **Object Tracking**:  
+   - Tracks detected objects across frames using DeepSort.
+   - Maintains a unique ID for each object and updates its state (position, velocity, etc.) over time.
 
-4. **Hyperdimensional Computing**:  
-   Prognosis encodes object states and tracks into high-dimensional vectors, simulating a holographic memory. These vectors enable the system to recall past states and detect patterns in complex contexts.
+4. **Hyperdimensional Memory**:  
+   - Encodes object states into hyperdimensional vectors.
+   - Stores these vectors in a holographic memory for contextual awareness.
+   - Recalls past states based on similarity to the current scene.
 
 5. **Evolutionary Adaptation**:  
-   Using Darwinian principles, Prognosis evaluates and evolves its internal parameters over time to improve its predictive capabilities. It continuously tests different configurations, retaining the most effective ones.
+   - Periodically evaluates the performance of the system.
+   - Dynamically adjusts parameters (e.g., noise multiplier, decay rates) to optimize tracking and prediction accuracy.
 
-6. **Quantum Prediction**:  
-   The system predicts future object states using probabilistic scenarios, enabling it to forecast potential collisions, overlaps, or significant events.
+6. **Consciousness Field**:  
+   - Maintains a multidimensional consciousness field that tracks object interactions and anomalies.
+   - Detects hotspots of activity and alerts the user to significant events.
 
-7. **Text-to-Speech (TTS)**:  
-   Prognosis provides real-time audio feedback using a text-to-speech engine. It generates alerts and summaries of the scene, making it highly interactive and user-friendly.
+7. **Real-Time Feedback**:  
+   - Provides spoken updates on detected objects, movements, and potential collisions.
+   - Highlights anomalies, scene changes, and emerging patterns in the environment.
 
-8. **Hyperdimensional Consciousness Field**:  
-   Prognosis simulates a "consciousness field" by maintaining a multi-dimensional grid of dynamic values. This field helps it identify hotspots of activity, convergence points, and emergent patterns in the environment.
+---
 
-## Example Outputs of Prognosis in Action
+## Example Outputs
 
-Here are some examples of what Prognosis might output during operation:
+Here are some examples of what Prognosis can do in action:
 
-### Real-Time Alerts:
-- **Scenario 1 (Fast Movement)**:  
-   "Alert: Fast-moving car driving on the left."
-- **Scenario 2 (Collision Prediction)**:  
-   "Predicted convergence between a person and a bicycle with 85% probability in 1 second."
-- **Scenario 3 (Consciousness Hotspot)**:  
-   "Hyperdimensional consciousness hotspot detected at coordinates (120, 240)."
+### 1. **Object Detection and Tracking**
+- Output:
+  ```
+  ID: 1 - person (walking) S:0.75 C:0.65
+  ID: 2 - car (parked) S:0.85 C:0.55
+  ```
+- Spoken Feedback:
+  - "A person is walking on the center."
+  - "A car is parked on the left."
 
-### Scene Summaries:
-- After 150 frames, the system provides a summary of the scene:  
-   "Scene summary: 3 people, 2 cars, 1 bicycle."
+### 2. **Collision Prediction**
+- Output:
+  ```
+  Potential collision between person and car in 2.5 seconds.
+  ```
+- Spoken Feedback:
+  - "Potential collision between person and car in 2.5 seconds."
 
-### Object Localization:
-- "A person has appeared on the center. A car is parked on the right."
+### 3. **Anomaly Detection**
+- Output:
+  ```
+  Anomaly detected at (150, 200).
+  ```
+- Spoken Feedback:
+  - "Anomaly detected at (150, 200)."
+
+### 4. **Scene Summary**
+- Output:
+  ```
+  Scene summary: 2 persons, 1 car.
+  ```
+- Spoken Feedback:
+  - "Scene summary: 2 persons, 1 car."
+
+### 5. **Hotspot Detection**
+- Output:
+  ```
+  Consciousness hotspot at (300, 400).
+  ```
+- Spoken Feedback:
+  - "Consciousness hotspot at (300, 400)."
+
+---
 
 ## How to Use Prognosis
 
-### Requirements
-To use Prognosis, ensure you have the following installed:
-- Python 3.8 or higher
-- Libraries: OpenCV, PyTorch, NumPy, SciPy, pyttsx3, and ultralytics (YOLO)
-- A webcam or video input device
+### Prerequisites
+1. Install Python 3.9 or higher.
+2. Install the required dependencies:
+   ```bash
+   pip install opencv-python torch numpy pyttsx3 ultralytics deep_sort_realtime scipy
+   ```
 
-### Installation
+### Running Prognosis
 1. Clone the repository:
    ```bash
    git clone https://github.com/CalebMathias/Prognosis-.git
    cd Prognosis-
    ```
-
-2. Install the required Python dependencies:
+2. Run the program:
    ```bash
-   pip install -r requirements.txt
+   python Prognosis.py
    ```
+3. The system will initialize and start processing video input from your webcam.
 
-3. Ensure that the YOLOv8x model (`yolov8x.pt`) is available in the working directory.
-
-### Running Prognosis
-1. Launch Prognosis:
-   ```bash
-   python Prognosis
-   ```
-
-2. The system will activate the webcam and start detecting and tracking objects in real time. A window will display the video feed with bounding boxes, labels, and actions.
-
-3. Use the following key to control the system:
-   - Press `q` to quit the application.
-
-### Customization
-- **Class Labels**:  
-   Modify the `self.class_labels` dictionary in the `Prognosis` class to add or change object labels.
-- **Action Mapping**:  
-   Adjust the `self.action_map` dictionary to define new actions for detected objects.
-- **Evolutionary Parameters**:  
-   Change the `self.population` list to experiment with different noise multiplier values.
-
-## Future Enhancements
-Prognosis is designed to be extensible. Future updates may include:
-- Integration with external APIs for advanced analytics
-- Support for additional object detection models
-- Enhanced visualization tools for the hyperdimensional consciousness field
+### Stopping Prognosis
+- Press `q` on the keyboard to terminate the program.
 
 ---
 
-Prognosis combines the latest advancements in AI, neuroscience, and robotics to create an intelligent system capable of understanding its environment in real time. Whether used for surveillance, autonomous systems, or educational purposes, Prognosis offers a glimpse into the future of machine intelligence.
+## Configuration Options
+
+You can customize Prognosis by modifying the following parameters in the `Prognosis` class:
+
+- **YOLO Model**: Change the YOLO model file (e.g., `yolov8n.pt`, `yolov8s.pt`) for different accuracy and speed trade-offs.
+- **Tracker Settings**: Adjust the `max_age` and other parameters for the DeepSort tracker.
+- **Speech Rate**: Modify the text-to-speech rate via `self.tts.setProperty("rate", <value>)`.
+- **Evolutionary Parameters**: Change the initial parameter set in `self.population` to experiment with different evolutionary strategies.
+
+---
+
+## Troubleshooting
+
+- **Webcam Not Detected**:
+  - Ensure the webcam is connected and accessible.
+  - Modify the `cv2.VideoCapture(0)` line to use a different video source if necessary.
+- **Missing Dependencies**:
+  - Verify that all required Python packages are installed.
+- **Low FPS**:
+  - Reduce the YOLO model size (e.g., use `yolov8n.pt` instead of `yolov8x.pt`).
+
+---
+
+Prognosis is an experimental AI framework that combines state-of-the-art vision technologies with innovative theories for advanced tracking, prediction, and anomaly detection. Try it out and explore the possibilities!
