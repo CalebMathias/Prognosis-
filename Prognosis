@@ -11,27 +11,30 @@ from scipy.fft import fft, ifft
 import random
 import logging
 
-# Setup logging for debugging
+# Configure logging for debugging and monitoring
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Prognosis:
     def __init__(self):
+        """Initialize the Prognosis AI vision system with all components."""
         # Core AI Vision Components
-        self.model = YOLO("yolov8x.pt")
-        self.tracker = DeepSort(max_age=30)
-        self.cap = cv2.VideoCapture(0)
+        self.model = YOLO("yolov8x.pt")  # YOLOv8x model for high-accuracy object detection
+        self.tracker = DeepSort(max_age=30)  # DeepSort tracker with a max age of 30 frames
+        self.cap = cv2.VideoCapture(0)  # Webcam capture
         if not self.cap.isOpened():
             raise Exception("Failed to initialize webcam")
 
         # Text-to-Speech Setup
-        self.speech_queue = queue.Queue()
-        self.tts = pyttsx3.init()
-        self.tts.setProperty("rate", 150)
+        self.speech_queue = queue.PriorityQueue()  # Priority queue for prioritized speech output
+        self.tts = pyttsx3.init()  # Text-to-speech engine
+        self.tts.setProperty("rate", 150)  # Speech rate set to 150 words per minute
         self.speech_thread = threading.Thread(target=self._speech_loop, daemon=True)
-        self.speech_thread.start()
+        self.speech_thread.start()  # Start speech thread as a daemon
 
         # Class Labels and Actions
-        self.class_labels = {0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 56: "chair", 58: "bench", -1: "unknown"}
+        self.class_labels = {
+            0: "person", 1: "bicycle", 2: "car", 3: "motorcycle", 56: "chair", 58: "bench", -1: "unknown"
+        }
         self.action_map = {
             "person": {"moving": "walking", "stationary": "standing"},
             "car": {"moving": "driving", "stationary": "parked"},
@@ -46,30 +49,32 @@ class Prognosis:
             "unknown": {"close": 0.5, "medium": 0.3, "far": 0.1, "fast": 0.5}
         }
 
-        # Holographic Memory (Holonomic Brain Theory)
-        self.holo_memory = []
-        self.max_memory = 100
-        self.hyper_dims = 5
-        self.hyper_vector_size = 32
-        self.previous_scene_vector = None
+        # Holographic Memory (Inspired by Holonomic Brain Theory)
+        self.holo_memory = []  # Stores (hypervector, state) tuples for memory and recall
+        self.max_memory = 100  # Maximum number of memory entries
+        self.hyper_dims = 5  # Number of dimensions for noise scaling
+        self.hyper_vector_size = 32  # Size of hyperdimensional vectors
+        self.previous_scene_vector = None  # Previous scene vector for change detection
 
-        # PNN-Inspired Components
-        self.pnn_stability = {}
-        self.pnn_plasticity = 0.5
-        self.pnn_protection = {}
+        # PNN-Inspired Components (Stability and Plasticity)
+        self.pnn_stability = {}  # Stability scores per track ID
+        self.pnn_plasticity = 0.5  # Initial plasticity value
+        self.pnn_protection = {}  # Protection scores per track ID
 
-        # Hyperdimensional Consciousness Field (Pravicia's Theory)
-        self.field_scale = 4
-        self.hyper_field = None
-        self.hyper_field_avg = None  # For anomaly detection
+        # Hyperdimensional Consciousness Field (Inspired by Pravicia's Theory)
+        self.field_scale = 4  # Scaling factor for field dimensions
+        self.hyper_field = None  # 4D array representing the consciousness field
+        self.hyper_field_avg = None  # Exponential moving average for anomaly detection
 
-        # Tracking and State
-        self.frame_counter = 0
-        self.previous_track_ids = set()
-        self.last_spoken = {}
-        self.previous_overlaps = set()
+        # Tracking and State Management
+        self.frame_counter = 0  # Frame count for timing events
+        self.previous_track_ids = set()  # IDs of tracks from the previous frame
+        self.last_spoken = {}  # Tracks last spoken messages and their frame counts
+        self.previous_overlaps = set()  # Previous overlapping track pairs
+        self.previous_movement = {}  # Previous movement states for state change detection
+        self.track_types = {}  # Object types for each track ID
 
-        # Evolutionary Mechanism (Darwin's Theory)
+        # Evolutionary Mechanism (Inspired by Darwin's Theory)
         self.population = [
             {'noise_multiplier': 0.8, 'hyper_decay': 0.85, 'hyper_amplitude': 0.8},
             {'noise_multiplier': 1.0, 'hyper_decay': 0.9, 'hyper_amplitude': 1.0},
@@ -77,33 +82,36 @@ class Prognosis:
             {'noise_multiplier': 0.9, 'hyper_decay': 0.87, 'hyper_amplitude': 0.9},
             {'noise_multiplier': 1.1, 'hyper_decay': 0.93, 'hyper_amplitude': 1.1},
         ]
-        self.current_parameter_set = self.population[0]
+        self.current_parameter_set = self.population[0]  # Current active parameter set
         self.errors = {i: {'prediction': [], 'field_variance': []} for i in range(len(self.population))}
-        self.track_histories = {}
-        self.evolution_interval = 300
-        self.field_variance_history = []
+        self.track_histories = {}  # Stores (frame, state) for prediction error calculation
+        self.evolution_interval = 300  # Frames between evolutionary updates
+        self.field_variance_history = []  # History of field variance for fitness
 
     def _speech_loop(self):
+        """Run a continuous loop to process speech queue items with priority."""
         while True:
-            message = self.speech_queue.get()
+            priority, message = self.speech_queue.get()  # Get highest priority (lowest -priority value)
             if message is None:
-                break
+                break  # Exit signal
             self.tts.say(message)
             self.tts.runAndWait()
             self.speech_queue.task_done()
 
     def speak(self, message, priority=1.0):
+        """Queue a message to be spoken with priority handling."""
         if priority is None or priority <= 0:
-            priority = 1.0
+            priority = 1.0  # Default priority
         if message not in self.last_spoken or self.last_spoken[message] > 30 * (1 / priority):
-            self.speech_queue.put(message)
+            self.speech_queue.put((-priority, message))  # Negative priority for max-heap behavior
             self.last_spoken[message] = 0
         for key in list(self.last_spoken.keys()):
             self.last_spoken[key] += 1
             if self.last_spoken[key] > 60:
-                del self.last_spoken[key]
+                del self.last_spoken[key]  # Clean up old entries
 
     def get_location(self, box, frame_width):
+        """Determine the horizontal location of an object in the frame."""
         x_center = (box[0] + box[2]) / 2
         if x_center < frame_width / 3:
             return "left"
@@ -113,6 +121,7 @@ class Prognosis:
             return "right"
 
     def get_distance(self, box, frame_height):
+        """Estimate the distance of an object based on its height in the frame."""
         height = box[3] - box[1]
         if height > 0.5 * frame_height:
             return "close"
@@ -122,8 +131,9 @@ class Prognosis:
             return "far"
 
     def get_movement(self, track, fps):
-        state = track.mean if hasattr(track, 'mean') else [0, 0, 0, 0, 0, 0, 0]
-        vx, vy = state[4], state[5]
+        """Calculate the movement and speed of a track."""
+        state = track.mean if hasattr(track, 'mean') else [0] * 7
+        vx, vy = state[4], state[5]  # Velocity components
         speed = (vx**2 + vy**2)**0.5 * fps
         if speed < 10:
             return "stationary", speed
@@ -132,41 +142,48 @@ class Prognosis:
         return f"{speed_label} {direction}", speed
 
     def get_action(self, obj_type, movement):
+        """Map object type and movement to an action description."""
         state = "moving" if movement != "stationary" else "stationary"
         return self.action_map.get(obj_type, {}).get(state, "")
 
     def hyperdimensional_encode(self, track):
-        state = track.mean[:6]
-        np.random.seed(int(track.track_id))
-        projection_matrix = np.random.normal(0, 1, (6, self.hyper_vector_size))
+        """Encode a track's state into a hyperdimensional vector."""
+        state = track.mean[:7]  # Full 7D state: [u, v, s, r, u_dot, v_dot, s_dot]
+        np.random.seed(int(track.track_id))  # Seed for consistency per track
+        projection_matrix = np.random.normal(0, 1, (7, self.hyper_vector_size))
         hyper_vector = np.tanh(np.dot(state, projection_matrix))
         norm = np.linalg.norm(hyper_vector)
         hyper_vector = hyper_vector / (norm if norm > 0 else 1.0)
         if len(self.holo_memory) >= self.max_memory:
-            self.holo_memory.pop(0)
-        self.holo_memory.append(hyper_vector)
+            self.holo_memory.pop(0)  # Remove oldest entry if at capacity
+        self.holo_memory.append((hyper_vector, state))  # Store vector and state
         return hyper_vector
 
     def hyperdimensional_recall(self, current_vector, track_id):
+        """Recall the most similar past state from holographic memory."""
         if not self.holo_memory:
-            return np.zeros(self.hyper_vector_size)
-        similarities = [np.dot(current_vector, mem) / (np.linalg.norm(current_vector) * np.linalg.norm(mem) + 1e-10)
+            return np.zeros(7)
+        similarities = [np.dot(current_vector, mem[0]) / (np.linalg.norm(current_vector) * np.linalg.norm(mem[0]) + 1e-10)
                         for mem in self.holo_memory]
         best_match_idx = np.argmax(similarities)
         stability_boost = self.pnn_stability.get(int(track_id), 0.5)
-        return self.holo_memory[best_match_idx] if similarities[best_match_idx] > (0.5 * stability_boost) else np.zeros(self.hyper_vector_size)
+        if similarities[best_match_idx] > (0.5 * stability_boost):
+            return self.holo_memory[best_match_idx][1]  # Return associated state
+        return np.zeros(7)
 
     def update_pnn_properties(self, track, confidence):
+        """Update PNN-inspired stability and protection properties."""
         track_id = int(track.track_id)
         confidence = float(confidence) if confidence is not None else 0.5
-        self.pnn_stability[track_id] = self.pnn_stability.get(track_id, 0) + (confidence * 0.1)
-        self.pnn_stability[track_id] = min(self.pnn_stability[track_id], 1.0)
+        self.pnn_stability[track_id] = min(self.pnn_stability.get(track_id, 0) + (confidence * 0.1), 1.0)
         self.pnn_protection[track_id] = self.pnn_stability[track_id] * 0.8
 
     def modulate_plasticity(self, context_complexity):
+        """Adjust plasticity based on scene complexity."""
         self.pnn_plasticity = max(0.1, 1.0 - (context_complexity / 100))
 
     def quantum_predict(self, track, t, num_scenarios=3):
+        """Predict future positions with quantum-inspired noise."""
         state = track.mean[:7]
         scenarios = []
         stability = self.pnn_stability.get(int(track.track_id), 0.5)
@@ -197,8 +214,9 @@ class Prognosis:
         return sorted(scenarios, key=lambda x: x[2], reverse=True)
 
     def compute_prediction_with_state(self, state, t, param_set):
+        """Compute a future prediction for a given state and parameter set."""
         scenarios = []
-        noise_scale = 5 * (1 - 0.5) * self.pnn_plasticity * param_set['noise_multiplie']
+        noise_scale = 5 * (1 - 0.5) * self.pnn_plasticity * param_set['noise_multiplier']  # Fixed typo
         for _ in range(3):
             hyper_noise = np.random.normal(0, noise_scale / np.sqrt(self.hyper_dims), 7)
             u, v, s, r, u_dot, v_dot, s_dot = state + hyper_noise
@@ -213,54 +231,57 @@ class Prognosis:
         return sorted(scenarios, key=lambda x: x[2], reverse=True)[0]
 
     def boxes_overlap(self, box1, box2):
+        """Check if two bounding boxes overlap."""
         x1a, y1a, x2a, y2a = box1
         x1b, y1b, x2b, y2b = box2
         return x1a < x2b and x2a > x1b and y1a < y2b and y2a > y1b
 
     def calculate_ttc(self, track1, track2):
-        """Calculate time-to-collision between two tracks."""
+        """Calculate time-to-collision with future size consideration."""
         state1 = track1.mean[:7]
         state2 = track2.mean[:7]
-        pos1 = np.array([state1[0], state1[1]])  # u, v (center coordinates)
+        pos1 = np.array([state1[0], state1[1]])
         pos2 = np.array([state2[0], state2[1]])
-        vel1 = np.array([state1[4], state1[5]])  # u_dot, v_dot (velocities)
+        vel1 = np.array([state1[4], state1[5]])
         vel2 = np.array([state2[4], state2[5]])
         V_rel = vel1 - vel2
         P_rel = pos1 - pos2
         if np.all(V_rel == 0):
-            return None  # No relative motion
+            return None
         dot_product = np.dot(P_rel, V_rel)
         if dot_product >= 0:
-            return None  # Moving apart or parallel
+            return None
         V_rel_mag2 = np.dot(V_rel, V_rel)
         if V_rel_mag2 < 1e-6:
-            return None  # Relative velocity too small
+            return None
         ttc = -dot_product / V_rel_mag2
         if ttc < 0:
-            return None  # Collision in the past
-        # Calculate future positions
+            return None
         future_pos1 = pos1 + ttc * vel1
         future_pos2 = pos2 + ttc * vel2
         distance = np.linalg.norm(future_pos1 - future_pos2)
-        # Calculate radii based on box dimensions
-        s1, r1 = state1[2], state1[3]  # s: area, r: aspect ratio
-        w1 = np.sqrt(s1 * r1) if s1 > 0 and r1 > 0 else 0
-        h1 = s1 / w1 if w1 > 0 else 0
-        diag1 = np.sqrt(w1**2 + h1**2)
-        radius1 = diag1 / 2
-        s2, r2 = state2[2], state2[3]
-        w2 = np.sqrt(s2 * r2) if s2 > 0 and r2 > 0 else 0
-        h2 = s2 / w2 if w2 > 0 else 0
-        diag2 = np.sqrt(w2**2 + h2**2)
-        radius2 = diag2 / 2
-        if distance < (radius1 + radius2):
-            return ttc  # TTC in frames
+        # Use future sizes for collision detection
+        s1_future = max(state1[2] + ttc * state1[6], 1)
+        r1 = state1[3]
+        w1_future = np.sqrt(s1_future * r1) if s1_future > 0 and r1 > 0 else 0
+        h1_future = s1_future / w1_future if w1_future > 0 else 0
+        diag1_future = np.sqrt(w1_future**2 + h1_future**2)
+        radius1_future = diag1_future / 2
+        s2_future = max(state2[2] + ttc * state2[6], 1)
+        r2 = state2[3]
+        w2_future = np.sqrt(s2_future * r2) if s2_future > 0 and r2 > 0 else 0
+        h2_future = s2_future / w2_future if w2_future > 0 else 0
+        diag2_future = np.sqrt(w2_future**2 + h2_future**2)
+        radius2_future = diag2_future / 2
+        if distance < (radius1_future + radius2_future):
+            return ttc
         return None
 
     def object_detector(self):
+        """Main loop for object detection, tracking, and analysis."""
         print("🚀 Prognosis AI Vision with Hyperdimensional Consciousness Field and Multi-Parameter Evolutionary Adaptation Activated...")
         fps = self.cap.get(cv2.CAP_PROP_FPS) or 30
-        future_t = 30
+        future_t = 30  # Prediction horizon in frames
 
         while self.cap.isOpened():
             ret, frame = self.cap.read()
@@ -273,13 +294,14 @@ class Prognosis:
             field_width = frame_width // self.field_scale
             hyper_size = 10
 
-            # Initialize or resize hyperdimensional fields
+            # Initialize or adjust hyperdimensional field
             if self.hyper_field is None or self.hyper_field.shape[:2] != (field_height, field_width):
                 self.hyper_field = np.zeros((field_height, field_width, hyper_size, hyper_size))
                 self.hyper_field_avg = np.zeros_like(self.hyper_field)
             else:
-                self.hyper_field *= self.current_parameter_set['hyper_decay']
+                self.hyper_field *= self.current_parameter_set['hyper_decay']  # Apply decay
 
+            # Object Detection
             results = self.model(frame, conf=0.4)
             detections = []
             for result in results:
@@ -289,11 +311,12 @@ class Prognosis:
                     try:
                         class_id = int(box.cls[0].item())
                     except (TypeError, ValueError):
-                        logging.warning(f"Invalid class_id for box: {box.cls[0].item()}")
+                        logging.warning(f"Invalid class_id: {box.cls}")
                         class_id = -1
                     obj_type = self.class_labels.get(class_id, "unknown")
                     detections.append([[x1, y1, x2, y2], confidence, obj_type])
 
+            # Tracking
             tracks = self.tracker.update_tracks(detections, frame=frame)
             current_track_ids = set()
             track_data = []
@@ -316,9 +339,9 @@ class Prognosis:
                             obj_type = det[2]
                             break
                     else:
-                        logging.warning(f"Invalid obj_type for track {track_id}: {obj_type}, class_id: {getattr(track, 'det_class', 'N/A')}, confidence: {getattr(track, 'det_conf', 'N/A')}. Setting to 'unknown'")
+                        logging.warning(f"Unknown obj_type for track {track_id}. Set to 'unknown'")
                         obj_type = "unknown"
-                confidence = getattr(track, 'det_conf', 0.5) if getattr(track, 'det_conf', None) is not None else 0.5
+                confidence = getattr(track, 'det_conf', 0.5) if hasattr(track, 'det_conf') else 0.5
                 current_track_ids.add(track_id)
                 location = self.get_location(box, frame_width)
                 distance = self.get_distance(box, frame_height)
@@ -327,22 +350,25 @@ class Prognosis:
 
                 self.update_pnn_properties(track, confidence)
 
+                # Emotional Weight Calculation
                 emo_weight = self.emotion_weights.get(obj_type, {}).get(distance, 0.5)
-                if emo_weight is None:
-                    logging.warning(f"emo_weight is None for obj_type={obj_type}, distance={distance}. Setting to 0.5.")
-                    emo_weight = 0.5
                 if "fast" in movement:
-                    fast_weight = self.emotion_weights.get(obj_type, {}).get("fast", 0.0)
-                    if fast_weight is None:
-                        logging.warning(f"fast_weight is None for obj_type={obj_type}. Setting to 0.0.")
-                        fast_weight = 0.0
-                    emo_weight += fast_weight
+                    emo_weight += self.emotion_weights.get(obj_type, {}).get("fast", 0.0)
+                state = track.mean if hasattr(track, 'mean') else [0] * 7
+                s_dot = state[6]  # Rate of change of area
+                if s_dot > 0:
+                    emo_weight += 0.1 * (s_dot / 100)  # Increase weight for approaching objects
                 emo_weight *= self.pnn_stability.get(track_id, 0.5)
 
+                # Hyperdimensional Processing
                 hyper_pattern = self.hyperdimensional_encode(track)
                 scene_vector += hyper_pattern * emo_weight
-                hyper_refinement = self.hyperdimensional_recall(hyper_pattern, track_id)
+                recalled_state = self.hyperdimensional_recall(hyper_pattern, track_id)
+                if np.any(recalled_state):
+                    alpha = 0.2  # Blending factor
+                    track.mean[:7] = (1 - alpha) * track.mean[:7] + alpha * recalled_state
 
+                # Update Consciousness Field
                 x_center = (box[0] + box[2]) / 2
                 y_center = (box[1] + box[3]) / 2
                 field_x = int(x_center // self.field_scale)
@@ -354,18 +380,18 @@ class Prognosis:
                         hyper_y = (self.frame_counter % 100) % hyper_size
                         for dy in range(-1, 2):
                             for dx in range(-1, 2):
-                                fy = field_y + dy
-                                fx = field_x + dx
+                                fy, fx = field_y + dy, field_x + dx
                                 if 0 <= fy < field_height and 0 <= fx < field_width:
                                     self.hyper_field[fy, fx, hyper_x, hyper_y] += increment
                     except TypeError as e:
-                        logging.error(f"TypeError in hyperdimensional indexing for track {track_id}: {e}")
+                        logging.error(f"Hyperdimensional indexing error for track {track_id}: {e}")
                         continue
 
                 consciousness_value = 0.0
                 if 0 <= field_y < field_height and 0 <= field_x < field_width:
                     consciousness_value = np.mean(self.hyper_field[field_y, field_x])
 
+                # Store Track Information
                 track_info = {
                     "track_id": track_id,
                     "type": obj_type,
@@ -381,6 +407,18 @@ class Prognosis:
                 }
                 track_data.append(track_info)
 
+                # Movement State Change Detection
+                if track_id in self.previous_movement:
+                    prev_movement = self.previous_movement[track_id]
+                    if prev_movement != movement:
+                        if movement == "stationary":
+                            self.speak(f"{obj_type} has stopped.", emo_weight)
+                        elif prev_movement == "stationary":
+                            self.speak(f"{obj_type} is now moving {movement}.", emo_weight)
+                self.previous_movement[track_id] = movement
+                self.track_types[track_id] = obj_type
+
+                # Visualization
                 x1, y1, x2, y2 = map(int, box)
                 label = f"ID: {track_id} - {obj_type} ({action}) S:{track_info['pnn_stability']:.2f} C:{consciousness_value:.2f}"
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -389,17 +427,17 @@ class Prognosis:
                     priority = emo_weight * (1 + consciousness_value)
                     self.speak(f"Alert: Fast-moving {obj_type} {movement} on the {location}.", priority)
 
-            # Scene Vector Processing
+            # Scene Change Detection
             if np.linalg.norm(scene_vector) > 0:
                 scene_vector /= np.linalg.norm(scene_vector)
                 if self.previous_scene_vector is not None:
                     similarity = np.dot(scene_vector, self.previous_scene_vector)
                     if similarity < 0.8:
-                        self.speak("Significant scene change detected.", priority=1.5)
-                        logging.info(f"Low scene similarity: {similarity}")
+                        self.speak("Significant scene change detected.", 1.5)
+                        logging.info(f"Scene similarity: {similarity}")
                 self.previous_scene_vector = scene_vector.copy()
 
-            # Emotional Weight Adjustment for Overlaps
+            # Overlap Detection
             overlapping_tracks = set()
             for i in range(len(track_data)):
                 for j in range(i + 1, len(track_data)):
@@ -408,10 +446,9 @@ class Prognosis:
                         overlapping_tracks.add(track_data[j]['track_id'])
             for track in track_data:
                 if track['track_id'] in overlapping_tracks:
-                    track['emo_weight'] += 0.2
-                    track['emo_weight'] = min(track['emo_weight'], 1.5)
+                    track['emo_weight'] = min(track['emo_weight'] + 0.2, 1.5)
 
-            # Field Variance for Evolution
+            # Field Variance Tracking
             field_variance = np.var(self.hyper_field) if self.hyper_field.size > 0 else 0.0
             self.field_variance_history.append(field_variance)
             if len(self.field_variance_history) > 30:
@@ -427,18 +464,16 @@ class Prognosis:
                     if track_id in self.track_histories:
                         frame_30_ago, state_30_ago = self.track_histories[track_id]
                         if self.frame_counter - frame_30_ago == 30:
-                            actual_position = [current_state[0], current_state[1]]  # u, v (center coordinates)
+                            actual_position = [current_state[0], current_state[1]]
                             for i, param_set in enumerate(self.population):
                                 top_box, _, _ = self.compute_prediction_with_state(state_30_ago, 30, param_set)
-                                predicted_position = [(top_box[0] + top_box[2])/2, (top_box[1] + top_box[3])/2]
+                                predicted_position = [(top_box[0] + top_box[2]) / 2, (top_box[1] + top_box[3]) / 2]
                                 error = np.linalg.norm(np.array(predicted_position) - np.array(actual_position))
-                                # Weight error by consciousness value
                                 field_u = int(actual_position[0] // self.field_scale)
                                 field_v = int(actual_position[1] // self.field_scale)
+                                consciousness_value = 0.0
                                 if 0 <= field_v < field_height and 0 <= field_u < field_width:
                                     consciousness_value = np.mean(self.hyper_field[field_v, field_u])
-                                else:
-                                    consciousness_value = 0.0
                                 weighted_error = error * (1 + consciousness_value)
                                 self.errors[i]['prediction'].append(weighted_error)
                                 avg_variance = np.mean(self.field_variance_history) if self.field_variance_history else 0.0
@@ -468,19 +503,30 @@ class Prognosis:
                     new_population.append(new_params)
                 self.population = new_population
                 self.errors = {i: {'prediction': [], 'field_variance': []} for i in range(len(self.population))}
-                logging.info(f"Evolved population: {[p for p in self.population]}, Best: {best_param_set}")
+                logging.info(f"Evolved population: {self.population}, Best: {best_param_set}")
 
+            # Detect Lost Tracks
+            lost_ids = self.previous_track_ids - current_track_ids
+            for lost_id in lost_ids:
+                if lost_id in self.track_types:
+                    obj_type = self.track_types[lost_id]
+                    self.speak(f"A {obj_type} has left the scene.", 0.5)
+
+            self.previous_track_ids = current_track_ids
             self.track_histories = {k: v for k, v in self.track_histories.items() if k in current_track_ids}
+            self.previous_movement = {k: v for k, v in self.previous_movement.items() if k in current_track_ids}
+            self.track_types = {k: v for k, v in self.track_types.items() if k in current_track_ids}
 
+            # Announce New Tracks
             new_ids = current_track_ids - self.previous_track_ids
             for track_id in new_ids:
                 track = next(t for t in track_data if t["track_id"] == track_id)
                 priority = track["emo_weight"] * (1 + track["consciousness_value"])
                 self.speak(f"A {track['type']} has appeared on the {track['location']}.", priority)
 
-            context_complexity = len(tracks) * 10
-            self.modulate_plasticity(context_complexity)
+            self.modulate_plasticity(len(tracks) * 10)
 
+            # Future Predictions
             future_scenarios = {}
             for track in tracks:
                 if not track.is_confirmed():
@@ -491,7 +537,7 @@ class Prognosis:
                 x1, y1, x2, y2 = map(int, top_box)
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
 
-            # Check for Potential Collisions
+            # Collision Detection
             for i in range(len(tracks)):
                 for j in range(i + 1, len(tracks)):
                     track1 = tracks[i]
@@ -499,14 +545,14 @@ class Prognosis:
                     if not track1.is_confirmed() or not track2.is_confirmed():
                         continue
                     ttc = self.calculate_ttc(track1, track2)
-                    if ttc is not None and ttc < 2.0 * fps:  # Within 2 seconds
+                    if ttc is not None and ttc < 2.0 * fps:
                         track1_info = next(t for t in track_data if t["track_id"] == track1.track_id)
                         track2_info = next(t for t in track_data if t["track_id"] == track2.track_id)
                         priority = max(track1_info["emo_weight"], track2_info["emo_weight"]) * 1.5
                         ttc_seconds = ttc / fps
                         self.speak(f"Potential collision between {track1_info['type']} and {track2_info['type']} in {ttc_seconds:.1f} seconds.", priority)
 
-            # Update Hyperdimensional Field Average and Detect Anomalies
+            # Anomaly Detection
             alpha = 0.01
             self.hyper_field_avg = alpha * self.hyper_field + (1 - alpha) * self.hyper_field_avg
             diff = np.abs(self.hyper_field - self.hyper_field_avg)
@@ -514,9 +560,9 @@ class Prognosis:
             anomaly_threshold = 5.0
             if np.max(diff_sum) > anomaly_threshold:
                 anomaly_y, anomaly_x = np.unravel_index(np.argmax(diff_sum), diff_sum.shape)
-                self.speak(f"Anomaly detected in hyperdimensional field at ({anomaly_x * self.field_scale}, {anomaly_y * self.field_scale}).", 2.0)
+                self.speak(f"Anomaly detected at ({anomaly_x * self.field_scale}, {anomaly_y * self.field_scale}).", 2.0)
 
-            # Future Scenario Overlaps
+            # Future Overlaps
             current_overlaps = set()
             track_ids = list(future_scenarios.keys())
             for i in range(len(track_ids)):
@@ -542,15 +588,16 @@ class Prognosis:
                         self.speak(f"Predicted convergence between {track1['type']} and {track2['type']} "
                                    f"with {int(joint_prob * 100)}% probability in 1 second.", emo_priority)
 
+            # Hotspot Detection
             hyper_sum = np.sum(self.hyper_field, axis=(2, 3))
             if np.any(hyper_sum > 10):
                 max_y, max_x = np.unravel_index(np.argmax(hyper_sum), hyper_sum.shape)
-                self.speak(f"Hyperdimensional consciousness hotspot detected at coordinates ({max_x * self.field_scale}, {max_y * self.field_scale}).", 2.0)
+                self.speak(f"Consciousness hotspot at ({max_x * self.field_scale}, {max_y * self.field_scale}).", 2.0)
 
             self.previous_overlaps = current_overlaps
-            self.previous_track_ids = current_track_ids
-
             self.frame_counter += 1
+
+            # Periodic Summary
             if self.frame_counter >= 150:
                 type_counts = Counter([t['type'] for t in track_data])
                 summary = "Scene summary: " + ", ".join(f"{count} {t}{'s' if count > 1 else ''}"
@@ -564,7 +611,7 @@ class Prognosis:
 
         self.cap.release()
         cv2.destroyAllWindows()
-        self.speech_queue.put(None)
+        self.speech_queue.put((0, None))  # Stop speech thread
         self.speech_thread.join()
         print("Prognosis with Hyperdimensional Consciousness and Multi-Parameter Evolutionary Adaptation terminated.")
 
